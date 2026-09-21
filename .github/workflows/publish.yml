@@ -27,5 +27,6 @@ jobs:
       - name: Verify release tag
         run: node --input-type=module -e 'import assert from "node:assert/strict"; import pkg from "./package.json" with { type:"json" }; assert.equal(process.env.GITHUB_REF_NAME, "v" + pkg.version)'
       # npm runs prepublishOnly (typecheck + tests) and authenticates through OIDC.
-      # Private repositories cannot generate npm provenance.
-      - run: npm publish --provenance=false
+      # This repository is public, so npm attaches a provenance attestation
+      # automatically; do not pass --provenance=false here.
+      - run: npm publish
