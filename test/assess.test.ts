@@ -115,6 +115,9 @@ test("renderAssessment carries the score, the label, and the hint", () => {
   assert.match(text, /タスク依頼/);
   assert.match(text, /76\/100 \(B\)/);
   assert.match(text, /- 制約: 守るべき条件/);
+  // It is appended to the user's own message, so it must stay delimited.
+  assert.ok(text.startsWith("<prompt_assessment>"));
+  assert.ok(text.endsWith("</prompt_assessment>"));
 });
 
 test("every checklist item gets a question and every required id is a real item", () => {

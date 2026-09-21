@@ -90,19 +90,23 @@ function gradeOf(score: number): Assessment["grade"] {
 }
 
 /**
- * The single message that is both shown to the user and sent to the model, so
- * the model can ask for what is missing instead of guessing.
+ * The block appended to the user's message by the `input` transform.
  *
- * The trailing note exists because the checklist sees the latest message alone:
- * anything the conversation already supplied must not be re-litigated. Lifting
- * that ceiling means passing prior turns as structured state.
+ * It rides inside the user turn rather than beside it, so the model reads the
+ * gaps as part of the request instead of as detached commentary. The XML tag
+ * keeps the injected text separable from what the user actually typed.
+ *
+ * The checklist sees the latest message alone: anything the conversation
+ * already supplied must not be re-litigated. Lifting that ceiling means passing
+ * prior turns as structured state.
  * ponytail: single-message scope, upgrade by adding a `conversation` field to
  * the state and re-scoring.
  */
 export function renderAssessment(assessment: Assessment): string {
   const type = assessment.inputType ? TYPE_LABELS[assessment.inputType] : "種別不明";
-  const confidence = assessment.inputType ? ` / confidence ${assessment.typeConfidence.toFixed(2)}` : "";
+  const confidence = assessment.inputType ? ` (confidence ${assessment.typeConfidence.toFixed(2)})` : "";
   const lines = [
+    "<prompt_assessment>",
     `プロンプト評価: ${type}${confidence} — ${assessment.score}/100 (${assessment.grade})`,
     "",
     `不足している項目 (${assessment.missing.length}):`,
@@ -112,7 +116,8 @@ export function renderAssessment(assessment: Assessment): string {
   }
   lines.push(
     "",
-    "※ 直近の1メッセージだけを評価しています。会話ですでに共有済みの項目は不足に数えないでください。",
+    "この評価はユーザーの直近メッセージだけを見たもので、依頼そのものではない。会話で既に共有済みの項目は不足に数えない。足りない項目は推測で埋めず、質問するか、置いた仮定を明示すること。",
+    "</prompt_assessment>",
   );
   return lines.join("\n");
 }
