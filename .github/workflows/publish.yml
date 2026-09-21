@@ -21,33 +21,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          # Deliberately no `registry-url`: setup-node then writes an .npmrc
-          # that authenticates with ${NODE_AUTH_TOKEN}, and npm prefers that
-          # token over the OIDC handshake. That is what broke the first release
-          # (404 on PUT, no mention of trusted publishing). package.json's
-          # publishConfig.registry already points at registry.npmjs.org.
+          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
       - name: Verify release tag
         run: node --input-type=module -e 'import assert from "node:assert/strict"; import pkg from "./package.json" with { type:"json" }; assert.equal(process.env.GITHUB_REF_NAME, "v" + pkg.version)'
-      # Trusted publishing reports a configuration mismatch as a plain 404, so
-      # prove the OIDC handshake is what publish will actually use.
-      - name: Check publish environment
+      # npm reports a publisher mismatch as a bare 404, which is
+      # indistinguishable from "package missing". Ask the OIDC exchange
+      # endpoint directly: it answers 201 when a trusted publisher matches this
+      # repository and workflow, and 404 when none does.
+      - name: Probe the OIDC exchange
         run: |
-          echo "node $(node -v) / npm $(npm -v)"
-          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL" \
-            && echo "OIDC request URL: present" \
-            || echo "OIDC request URL: MISSING"
-          echo "NODE_AUTH_TOKEN length: ${#NODE_AUTH_TOKEN}"
-          userconfig="${NPM_CONFIG_USERCONFIG:-}"
-          if [ -n "$userconfig" ] && [ -f "$userconfig" ]; then
-            sed 's/\(_authToken=\).*/\1<redacted>/' "$userconfig"
+          token=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" | jq -r '.value')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::error::could not obtain an OIDC id_token"
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/exchange.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $token" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@hikae%2Fpi-prompt-enhancer")
+          echo "token exchange status: $status"
+          if [ "$status" = "201" ]; then
+            echo "a trusted publisher matches this repository and workflow"
           else
-            echo "npm userconfig: none"
+            # Never print the body of a 201; it carries a registry token.
+            echo "no trusted publisher matched; registry said: $(head -c 400 /tmp/exchange.json)"
           fi
       - name: Publish
         # npm runs prepublishOnly (typecheck + tests). The repository is public,
         # so npm attaches a provenance attestation automatically.
-        run: |
-          unset NODE_AUTH_TOKEN
-          npm publish
+        run: npm publish
