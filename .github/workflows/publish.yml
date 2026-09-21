@@ -21,25 +21,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          # Deliberately no `registry-url`: setup-node then writes an .npmrc
+          # that authenticates with ${NODE_AUTH_TOKEN}, and npm prefers that
+          # token over the OIDC handshake. That is what broke the first release
+          # (404 on PUT, no mention of trusted publishing). package.json's
+          # publishConfig.registry already points at registry.npmjs.org.
 
       - run: pnpm install --frozen-lockfile
       - name: Verify release tag
         run: node --input-type=module -e 'import assert from "node:assert/strict"; import pkg from "./package.json" with { type:"json" }; assert.equal(process.env.GITHUB_REF_NAME, "v" + pkg.version)'
-      # Trusted publishing fails as an opaque 404 when the OIDC handshake never
-      # happens, so prove the handshake is available before publishing.
-      - name: Check OIDC environment
+      # Trusted publishing reports a configuration mismatch as a plain 404, so
+      # prove the OIDC handshake is what publish will actually use.
+      - name: Check publish environment
         run: |
           echo "node $(node -v) / npm $(npm -v)"
           test -n "$ACTIONS_ID_TOKEN_REQUEST_URL" \
-            && echo "ACTIONS_ID_TOKEN_REQUEST_URL: present" \
-            || echo "ACTIONS_ID_TOKEN_REQUEST_URL: MISSING"
-          test -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            && echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: present" \
-            || echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: MISSING"
-          echo "--- ~/.npmrc written by setup-node ---"
-          sed 's/\(_authToken=\).*/\1<redacted>/' ~/.npmrc 2>/dev/null || echo "(none)"
-      # npm runs prepublishOnly (typecheck + tests) and authenticates through OIDC.
-      # This repository is public, so npm attaches a provenance attestation
-      # automatically; do not pass --provenance=false here.
-      - run: npm publish
+            && echo "OIDC request URL: present" \
+            || echo "OIDC request URL: MISSING"
+          echo "NODE_AUTH_TOKEN length: ${#NODE_AUTH_TOKEN}"
+          userconfig="${NPM_CONFIG_USERCONFIG:-}"
+          if [ -n "$userconfig" ] && [ -f "$userconfig" ]; then
+            sed 's/\(_authToken=\).*/\1<redacted>/' "$userconfig"
+          else
+            echo "npm userconfig: none"
+          fi
+      - name: Publish
+        # npm runs prepublishOnly (typecheck + tests). The repository is public,
+        # so npm attaches a provenance attestation automatically.
+        run: |
+          unset NODE_AUTH_TOKEN
+          npm publish
