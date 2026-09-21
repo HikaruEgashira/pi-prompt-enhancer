@@ -1,6 +1,6 @@
 {
   "name": "@hikae/pi-prompt-enhancer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "pi extension that rates each prompt with TypeSafe's jev decision model and reports the gaps in the footer.",
   "keywords": [
     "pi-package",
