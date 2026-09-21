@@ -90,11 +90,29 @@ function gradeOf(score: number): Assessment["grade"] {
 }
 
 /**
- * The block appended to the user's message by the `input` transform.
+ * The one-line verdict for the persistent footer status.
  *
- * It rides inside the user turn rather than beside it, so the model reads the
- * gaps as part of the request instead of as detached commentary. The XML tag
- * keeps the injected text separable from what the user actually typed.
+ * Kept separate from the message sent to the model: the footer has a single
+ * line, so it carries the score and the gap labels and drops the explanations.
+ */
+export interface StatusSummary {
+  text: string;
+  level: "success" | "warning" | "error";
+}
+
+export function statusSummary(assessment: Assessment): StatusSummary {
+  const type = assessment.inputType ? TYPE_LABELS[assessment.inputType] : "種別不明";
+  const head = `${type} ${assessment.score}/100 ${assessment.grade}`;
+  if (assessment.missing.length === 0) return { text: `${head} · 不足なし`, level: "success" };
+  const labels = assessment.missing.map((item) => item.label).join(", ");
+  return {
+    text: `${head} · 不足${assessment.missing.length}: ${labels}`,
+    level: assessment.grade === "D" ? "error" : "warning",
+  };
+}
+
+/**
+ * The message handed to the model, invisible to the user (`display: false`).
  *
  * The checklist sees the latest message alone: anything the conversation
  * already supplied must not be re-litigated. Lifting that ceiling means passing

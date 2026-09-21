@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assess, renderAssessment } from "../src/assess.ts";
+import { assess, renderAssessment, statusSummary } from "../src/assess.ts";
 import { ITEMS, buildQuestions } from "../src/checklist.ts";
 import { JevUnavailable, parseAnswers, type Answer } from "../src/jev.ts";
 
@@ -128,6 +128,46 @@ test("every checklist item gets a question and every required id is a real item"
   assert.ok("input_type" in questions);
   assert.ok("clarity" in questions);
   assert.ok("specificity" in questions);
+});
+
+test("statusSummary carries the gaps in one line and escalates on a D", () => {
+  const failing = assess(
+    answers({
+      has_goal: present(0.9),
+      has_context: present(0.9),
+      has_constraints: present(0.0),
+      has_output_format: present(0.1),
+      has_success_criteria: present(0.1),
+    }),
+  );
+  assert.equal(statusSummary(failing).text, "タスク依頼 76/100 B · 不足3: 制約, 出力形式, 完了条件");
+  assert.equal(statusSummary(failing).level, "warning");
+
+  const worst = assess(
+    answers({
+      has_goal: present(0),
+      has_context: present(0),
+      has_constraints: present(0),
+      has_output_format: present(0),
+      has_success_criteria: present(0),
+      clarity: { type: "score", score: 0, confidence: 0.9, levels: 3 },
+      specificity: { type: "score", score: 0, confidence: 0.9, levels: 3 },
+    }),
+  );
+  assert.equal(worst.score, 0);
+  assert.equal(statusSummary(worst).level, "error");
+
+  const clean = assess(
+    answers({
+      has_goal: present(0.9),
+      has_context: present(0.9),
+      has_constraints: present(0.9),
+      has_output_format: present(0.9),
+      has_success_criteria: present(0.9),
+    }),
+  );
+  assert.equal(statusSummary(clean).text, "タスク依頼 100/100 A · 不足なし");
+  assert.equal(statusSummary(clean).level, "success");
 });
 
 test("parseAnswers validates shape and rejects a malformed answer", () => {
