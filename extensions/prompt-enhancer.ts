@@ -15,9 +15,6 @@ import { assess, renderAssessment } from "../src/assess.ts";
 import { buildQuestions } from "../src/checklist.ts";
 import { askJev } from "../src/jev.ts";
 
-/** Below this many characters the prompt is "続けて" / "yes" — nothing to rate. */
-const MIN_PROMPT_LENGTH = 12;
-
 export default function promptEnhancer(pi: ExtensionAPI) {
   let warned = false;
 
@@ -38,8 +35,12 @@ export default function promptEnhancer(pi: ExtensionAPI) {
     const skipSteering = event.streamingBehavior === "steer";
     if (skipSteering) return;
 
+    // No length heuristic: character count is not a proxy for "worth rating"
+    // across scripts, and a floor silently drops real prompts ("いい感じにして"
+    // is 7 characters). The `chitchat` class is the correct gate — it has no
+    // required items, so a greeting produces no output.
     const prompt = event.text.trim();
-    if (prompt.length < MIN_PROMPT_LENGTH) return;
+    if (prompt.length === 0) return;
 
     if (!process.env.TYPESAFE_API_KEY) {
       warnOnce(ctx, "prompt-enhancer: TYPESAFE_API_KEY が未設定のため評価をスキップします");
