@@ -1,0 +1,53 @@
+{
+  "name": "@hikae/pi-prompt-enhancer",
+  "version": "0.1.0",
+  "description": "pi extension that rates every prompt with TypeSafe's jev decision model and injects the missing pieces as hints.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "prompt-engineering",
+    "typesafe",
+    "jev"
+  ],
+  "license": "MIT",
+  "author": "HikaruEgashira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HikaruEgashira/pi-prompt-enhancer.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/prompt-enhancer.ts"
+    ]
+  },
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "check": "npm run typecheck && npm test",
+    "prepublishOnly": "npm run check"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.86.1",
+    "@types/node": "^24.13.5",
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "pnpm@11.26.0"
+}
