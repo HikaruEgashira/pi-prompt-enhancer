@@ -26,6 +26,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify release tag
         run: node --input-type=module -e 'import assert from "node:assert/strict"; import pkg from "./package.json" with { type:"json" }; assert.equal(process.env.GITHUB_REF_NAME, "v" + pkg.version)'
+      # Trusted publishing fails as an opaque 404 when the OIDC handshake never
+      # happens, so prove the handshake is available before publishing.
+      - name: Check OIDC environment
+        run: |
+          echo "node $(node -v) / npm $(npm -v)"
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL" \
+            && echo "ACTIONS_ID_TOKEN_REQUEST_URL: present" \
+            || echo "ACTIONS_ID_TOKEN_REQUEST_URL: MISSING"
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            && echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: present" \
+            || echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: MISSING"
+          echo "--- ~/.npmrc written by setup-node ---"
+          sed 's/\(_authToken=\).*/\1<redacted>/' ~/.npmrc 2>/dev/null || echo "(none)"
       # npm runs prepublishOnly (typecheck + tests) and authenticates through OIDC.
       # This repository is public, so npm attaches a provenance attestation
       # automatically; do not pass --provenance=false here.
