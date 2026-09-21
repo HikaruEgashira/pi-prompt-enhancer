@@ -15,8 +15,7 @@ const TIMEOUT_MS = 2500;
 
 export type Answer =
   | { type: "noul"; noul: number }
-  | { type: "choice"; choice: string; confidence: number }
-  | { type: "score"; score: number; confidence: number; levels: number };
+  | { type: "choice"; choice: string; confidence: number };
 
 export class JevUnavailable extends Error {}
 
@@ -102,18 +101,6 @@ function parseAnswer(id: string, raw: unknown): Answer {
       throw new JevUnavailable(`answer "${id}" was not a usable choice`);
     }
     return { type: "choice", choice, confidence };
-  }
-
-  if (type === "score") {
-    const score = finite(raw["score"]);
-    const confidence = finite(raw["confidence"]);
-    const legend = raw["legend"];
-    if (score === undefined || confidence === undefined || !isRecord(legend)) {
-      throw new JevUnavailable(`answer "${id}" was not a usable score`);
-    }
-    const levels = Object.keys(legend).length;
-    if (levels < 2) throw new JevUnavailable(`answer "${id}" had fewer than two levels`);
-    return { type: "score", score, confidence, levels };
   }
 
   throw new JevUnavailable(`answer "${id}" had unknown type ${JSON.stringify(type)}`);

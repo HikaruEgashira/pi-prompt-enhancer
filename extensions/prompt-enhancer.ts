@@ -130,7 +130,10 @@ export default function promptEnhancer(pi: ExtensionAPI) {
     if (text.length === 0) return;
     if (reportMissingKey(ctx)) return;
 
-    pending = await run(text, ctx);
+    const assessment = await run(text, ctx);
+    // A prompt with no gaps gets no message: an empty checklist would still
+    // invite the model to interview the user about nothing.
+    pending = assessment && assessment.missing.length > 0 ? assessment : null;
   });
 
   pi.on("before_agent_start", async () => {

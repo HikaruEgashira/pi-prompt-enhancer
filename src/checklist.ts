@@ -11,7 +11,8 @@
  * Two deliberate language choices:
  *  - `instructions` and `criteria` are English. Jev's primary training language
  *    is English, so the questions stay English even when the prompt is not.
- *  - Hint text is Japanese, because that is what the user reads.
+ *  - `hint` is English, because the agent reads it. `label` stays Japanese,
+ *    because the user reads the gap list in the footer.
  */
 
 /** Question types accepted by POST /v1/systemone. */
@@ -23,11 +24,11 @@ export type Question =
 export type InputType = "question" | "task" | "analysis" | "creative" | "chitchat";
 
 export interface ChecklistItem {
-  /** Short Japanese label shown in the hint list. */
+  /** Short Japanese label for the footer gap list, which the user reads. */
   label: string;
   /** The Noul instruction asked of jev. */
   ask: string;
-  /** The Japanese hint shown when the item is missing. */
+  /** English instruction for the agent, sent when the item is missing. */
   hint: string;
 }
 
@@ -57,62 +58,62 @@ export const ITEMS: Record<string, ChecklistItem> = {
   goal: {
     label: "目的・ゴール",
     ask: "Does `request` state what the user wants to achieve or obtain?",
-    hint: "達成したいことを1文で書く（例: 「〜を〜の状態にしたい」）。",
+    hint: "State what the reader should achieve, in one sentence.",
   },
   context: {
     label: "背景・前提",
     ask: "Does `request` give the background, the situation, or the reason it is being asked?",
-    hint: "背景・前提・なぜそれを聞きたいのかを添える。",
+    hint: "Add the background, the situation, and the reason this matters.",
   },
   constraints: {
     label: "制約",
     ask: "Does `request` state constraints it must respect, such as tools, language, scope, deadline, or things to avoid?",
-    hint: "守るべき条件を書く（言語・依存・対象範囲・締切・禁止事項）。",
+    hint: "State the constraints: language, dependencies, scope, deadline, off-limits areas.",
   },
   output_format: {
     label: "出力形式",
     ask: "Does `request` specify the desired output format, structure, or length?",
-    hint: "欲しい形式・長さ・構成を指定する（箇条書き / 表 / コード / 〜字以内）。",
+    hint: "Specify the output format, structure, and length (prose, bullets, table, code, size cap).",
   },
   success_criteria: {
     label: "完了条件",
     ask: "Does `request` state how the result will be judged or verified?",
-    hint: "何をもって完了とするか、確認方法を書く（テスト・受け入れ条件）。",
+    hint: "State how the result gets judged or verified (tests, acceptance criteria).",
   },
   examples: {
     label: "例",
     ask: "Does `request` include an example of the desired input or output?",
-    hint: "期待する出力の例を1〜2個添える（few-shot）。",
+    hint: "Add one or two examples of the desired input or output.",
   },
   audience: {
     label: "読み手",
     ask: "Does `request` name who the result is for?",
-    hint: "誰が読む・使うかを書く（専門家 / 初心者 / 経営層）。",
+    hint: "Name the audience (expert, beginner, executive).",
   },
   tone: {
     label: "トーン・文体",
     ask: "Does `request` specify the tone or writing style?",
-    hint: "文体・トーンを指定する（です・ます / 断定 / カジュアル）。",
+    hint: "Specify the tone and the writing style.",
   },
   eval_criteria: {
     label: "評価軸",
     ask: "Does `request` name the axes to evaluate or compare on?",
-    hint: "何の軸で評価・比較するかを列挙する。",
+    hint: "List the axes to evaluate or compare on.",
   },
   data_source: {
     label: "対象データ",
     ask: "Does `request` name the material to analyze and where it lives?",
-    hint: "対象の資料・ファイル・範囲を指定する。",
+    hint: "Name the material to analyze and where it lives.",
   },
   prior_attempts: {
     label: "試したこと",
     ask: "Does `request` describe what has already been tried and what happened?",
-    hint: "すでに試したことと、その結果を書く。",
+    hint: "Describe what has already been tried and what happened.",
   },
   decision_use: {
     label: "用途",
     ask: "Does `request` say what decision the answer will inform?",
-    hint: "得た答えを何の判断に使うかを書く。",
+    hint: "State which decision the answer informs.",
   },
 };
 
@@ -132,22 +133,13 @@ export const REQUIRED: Record<InputType, readonly string[]> = {
  */
 export const FALLBACK_ITEMS: readonly string[] = ["goal", "context"];
 
-export const CLARITY_LEVELS = [
-  "Ambiguous; the reader cannot tell the actual ask without guessing",
-  "Mostly clear, but a second reading is still plausible",
-  "Unambiguous; a reader with no extra context knows exactly what is asked",
-];
-
-export const SPECIFICITY_LEVELS = [
-  "Only abstract generalities; no concrete nouns, files, or numbers",
-  "Some concrete detail, but the key specifics are still left out",
-  "Concrete and detailed; names the actual files, values, or steps involved",
-];
-
 /**
  * Every question for every type in one request. jev evaluates them in parallel,
  * so asking speculatively is cheaper than a second round trip; `assess()` reads
  * only the ones the classified type needs.
+ *
+ * One Choice plus one Noul per item. A Score question would carry no weight:
+ * the score is a deduction over confirmed gaps.
  */
 export function buildQuestions(): Record<string, Question> {
   const questions: Record<string, Question> = {
@@ -155,16 +147,6 @@ export function buildQuestions(): Record<string, Question> {
       type: "choice",
       instructions: "What kind of request is this?",
       criteria: INPUT_TYPES,
-    },
-    clarity: {
-      type: "score",
-      instructions: "How clear is `request` to a reader with no extra context?",
-      criteria: CLARITY_LEVELS,
-    },
-    specificity: {
-      type: "score",
-      instructions: "How specific and concrete is `request`?",
-      criteria: SPECIFICITY_LEVELS,
     },
   };
   for (const [id, item] of Object.entries(ITEMS)) {
