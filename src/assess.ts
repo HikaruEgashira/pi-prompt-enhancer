@@ -26,6 +26,14 @@ import type { Answer } from "./jev.ts";
  */
 export const GAP_MAX = 0.2;
 
+/**
+ * At or below this Noul value the item is not needed by this request, so it
+ * drops off the checklist entirely: it is neither a gap nor part of the score
+ * denominator. Mirrors GAP_MAX in being clearly on the "no" side of the
+ * midpoint; a mid-range answer keeps the item scoped in.
+ */
+export const NEED_MAX = 0.4;
+
 /** A prompt missing every item its type expects still scores this much. */
 export const FLOOR = 20;
 
@@ -53,8 +61,13 @@ export function assess(answers: Record<string, Answer>): Assessment {
   const { inputType, typeConfidence } = classify(answers["input_type"]);
   const required = inputType ? REQUIRED[inputType] : FALLBACK_ITEMS;
 
+  // Keep only the items this request actually calls for. A fixed checklist
+  // would flag 制約 on a one-liner that never needed it; the `need_` answer is
+  // what keeps irrelevant items out of both the gap list and the denominator.
+  const applicable = required.filter((id) => needed(answers[`need_${id}`]));
+
   const missing: MissingItem[] = [];
-  for (const id of required) {
+  for (const id of applicable) {
     const item = ITEMS[id];
     if (!item) continue;
     // An absent answer is no evidence of a gap, so it counts as present rather
@@ -64,13 +77,21 @@ export function assess(answers: Record<string, Answer>): Assessment {
     if (probability <= GAP_MAX) missing.push({ id, label: item.label, hint: item.hint });
   }
 
-  // Deduct from 100, spread evenly over the items this type expects. Every type
-  // then lands on FLOOR when it misses all of them, so the number means the
-  // same thing whatever the checklist length.
-  const perGap = required.length === 0 ? 0 : (100 - FLOOR) / required.length;
+  // Deduct from 100, spread evenly over the applicable items. Every type then
+  // lands on FLOOR when it misses all of them, so the number means the same
+  // thing whatever the checklist length.
+  const perGap = applicable.length === 0 ? 0 : (100 - FLOOR) / applicable.length;
   const score = Math.round(100 - missing.length * perGap);
 
   return { inputType, typeConfidence, score, grade: gradeOf(score), missing };
+}
+
+/**
+ * An absent or mid-range `need_` answer keeps the item scoped in; only a
+ * clearly-negative answer drops it, so an undecided jev never trims the rubric.
+ */
+function needed(answer: Answer | undefined): boolean {
+  return answer?.type !== "noul" || answer.noul > NEED_MAX;
 }
 
 function classify(answer: Answer | undefined): { inputType: InputType | null; typeConfidence: number } {

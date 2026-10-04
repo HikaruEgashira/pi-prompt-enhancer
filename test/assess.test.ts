@@ -124,10 +124,83 @@ test("the model block is exactly the gaps plus the instruction", () => {
   );
 });
 
+test("an item the request never needed counts neither as a gap nor in the denominator", () => {
+  const result = assess(
+    answers({
+      has_goal: noul(0.94),
+      has_context: noul(0.9),
+      has_constraints: noul(0.05), // missing on the has_ axis...
+      need_constraints: noul(0.05), // ...but this request never needed 制約
+      has_output_format: noul(0.9),
+      has_success_criteria: noul(0.9),
+    }),
+  );
+
+  assert.deepEqual(result.missing, []);
+  // Four applicable items, all present: full marks instead of a false D.
+  assert.equal(result.score, 100);
+  assert.equal(result.grade, "A");
+});
+
+test("a needed but missing item still gaps against the trimmed denominator", () => {
+  const result = assess(
+    answers({
+      has_goal: noul(0.9),
+      has_context: noul(0.9),
+      need_constraints: noul(0.05),
+      has_output_format: noul(0.1), // needed and missing
+      need_output_format: noul(0.9),
+      has_success_criteria: noul(0.9),
+      need_success_criteria: noul(0.9),
+    }),
+  );
+
+  assert.deepEqual(
+    result.missing.map((item) => item.id),
+    ["output_format"],
+  );
+  // 4 applicable items, 1 gap: 100 - 1 * 20.
+  assert.equal(result.score, 80);
+});
+
+test("an undecided need_ answer keeps the item scoped in", () => {
+  const result = assess(
+    answers({
+      has_goal: noul(0.9),
+      has_context: noul(0.9),
+      has_constraints: noul(0.9),
+      has_output_format: noul(0.9),
+      need_output_format: noul(0.45), // right at the NEED_MAX boundary
+      has_success_criteria: noul(0.9),
+    }),
+  );
+
+  assert.deepEqual(result.missing, []);
+  assert.equal(result.score, 100);
+});
+
+test("an absent need_ answer counts as needed", () => {
+  const result = assess(
+    answers({
+      has_goal: noul(0.9),
+      has_context: noul(0.9),
+      has_constraints: noul(0.0),
+      has_output_format: noul(0.1),
+      has_success_criteria: noul(0.1),
+    }),
+  );
+
+  assert.deepEqual(
+    result.missing.map((item) => item.id),
+    ["constraints", "output_format", "success_criteria"],
+  );
+});
+
 test("every checklist item gets a question, and no question scores style", () => {
   const questions = buildQuestions();
   for (const id of Object.keys(ITEMS)) {
     assert.ok(`has_${id}` in questions, `missing question has_${id}`);
+    assert.ok(`need_${id}` in questions, `missing question need_${id}`);
   }
   assert.ok("input_type" in questions);
   assert.equal("clarity" in questions, false);

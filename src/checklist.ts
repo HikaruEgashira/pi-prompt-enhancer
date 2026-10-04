@@ -26,8 +26,8 @@ export type InputType = "question" | "task" | "analysis" | "creative" | "chitcha
 export interface ChecklistItem {
   /** Short Japanese label for the footer gap list, which the user reads. */
   label: string;
-  /** The Noul instruction asked of jev. */
-  ask: string;
+  /** English noun phrase telling jev what the item is about. */
+  subject: string;
   /** English instruction for the agent, sent when the item is missing. */
   hint: string;
 }
@@ -57,62 +57,62 @@ export const TYPE_LABELS: Record<InputType, string> = {
 export const ITEMS: Record<string, ChecklistItem> = {
   goal: {
     label: "目的・ゴール",
-    ask: "Does `request` state what the user wants to achieve or obtain?",
+    subject: "what the user wants to achieve or obtain",
     hint: "State what the reader should achieve, in one sentence.",
   },
   context: {
     label: "背景・前提",
-    ask: "Does `request` give the background, the situation, or the reason it is being asked?",
+    subject: "the background, the situation, or the reason it is being asked",
     hint: "Add the background, the situation, and the reason this matters.",
   },
   constraints: {
     label: "制約",
-    ask: "Does `request` state constraints it must respect, such as tools, language, scope, deadline, or things to avoid?",
+    subject: "constraints it must respect, such as tools, language, scope, deadline, or things to avoid",
     hint: "State the constraints: language, dependencies, scope, deadline, off-limits areas.",
   },
   output_format: {
     label: "出力形式",
-    ask: "Does `request` specify the desired output format, structure, or length?",
+    subject: "the desired output format, structure, or length",
     hint: "Specify the output format, structure, and length (prose, bullets, table, code, size cap).",
   },
   success_criteria: {
     label: "完了条件",
-    ask: "Does `request` state how the result will be judged or verified?",
+    subject: "how the result will be judged or verified",
     hint: "State how the result gets judged or verified (tests, acceptance criteria).",
   },
   examples: {
     label: "例",
-    ask: "Does `request` include an example of the desired input or output?",
+    subject: "an example of the desired input or output",
     hint: "Add one or two examples of the desired input or output.",
   },
   audience: {
     label: "読み手",
-    ask: "Does `request` name who the result is for?",
+    subject: "who the result is for",
     hint: "Name the audience (expert, beginner, executive).",
   },
   tone: {
     label: "トーン・文体",
-    ask: "Does `request` specify the tone or writing style?",
+    subject: "the tone or writing style",
     hint: "Specify the tone and the writing style.",
   },
   eval_criteria: {
     label: "評価軸",
-    ask: "Does `request` name the axes to evaluate or compare on?",
+    subject: "the axes to evaluate or compare on",
     hint: "List the axes to evaluate or compare on.",
   },
   data_source: {
     label: "対象データ",
-    ask: "Does `request` name the material to analyze and where it lives?",
+    subject: "the material to analyze and where it lives",
     hint: "Name the material to analyze and where it lives.",
   },
   prior_attempts: {
     label: "試したこと",
-    ask: "Does `request` describe what has already been tried and what happened?",
+    subject: "what has already been tried and what happened",
     hint: "Describe what has already been tried and what happened.",
   },
   decision_use: {
     label: "用途",
-    ask: "Does `request` say what decision the answer will inform?",
+    subject: "which decision the answer will inform",
     hint: "State which decision the answer informs.",
   },
 };
@@ -138,8 +138,11 @@ export const FALLBACK_ITEMS: readonly string[] = ["goal", "context"];
  * so asking speculatively is cheaper than a second round trip; `assess()` reads
  * only the ones the classified type needs.
  *
- * One Choice plus one Noul per item. A Score question would carry no weight:
- * the score is a deduction over confirmed gaps.
+ * One Choice plus two Nouls per item: whether the request states it (`has_`)
+ * and whether the request even calls for it (`need_`). A fixed per-type
+ * checklist would flag items the prompt never needed, so the `need_` answers
+ * are what keep irrelevant items off the gap list. A Score question would
+ * carry no weight: the score is a deduction over confirmed gaps.
  */
 export function buildQuestions(): Record<string, Question> {
   const questions: Record<string, Question> = {
@@ -152,10 +155,18 @@ export function buildQuestions(): Record<string, Question> {
   for (const [id, item] of Object.entries(ITEMS)) {
     questions[`has_${id}`] = {
       type: "noul",
-      instructions: item.ask,
+      instructions: `Does \`request\` state ${item.subject}?`,
       criteria: {
         true: "Stated, or so clearly implied that no reader would ask for it",
         false: "Not stated in `request`",
+      },
+    };
+    questions[`need_${id}`] = {
+      type: "noul",
+      instructions: `To be complete, does this request need ${item.subject}?`,
+      criteria: {
+        true: "The request would be incomplete or ambiguous without it",
+        false: "This request does not call for it; stating it would add nothing",
       },
     };
   }
