@@ -117,8 +117,7 @@ test("the model block is exactly the gaps plus the instruction", () => {
       "- State how the result gets judged or verified (tests, acceptance criteria).",
       "",
       "Resolve each item by exploring the repository and the conversation first.",
-      "When an item stays open, present the candidate options and ask the user to choose.",
-      "Interview relentlessly until you reach a shared understanding, mapping decisions as a design tree: every decision branches into the decisions that hang off it.",
+      "State the assumption you settle on and proceed; ask the user only when the item is a decision that is theirs alone.",
       "</prompt_assessment>",
     ].join("\n"),
   );

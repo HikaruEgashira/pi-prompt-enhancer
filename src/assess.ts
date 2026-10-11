@@ -140,6 +140,8 @@ export function statusSummary(assessment: Assessment): StatusSummary {
  * conversation to recover anything already settled.
  *
  * House style: affirmative sentences, so every line reads as a next step.
+ * The default is to assume and proceed: an instruction to keep interviewing
+ * trades the agent's autonomy for questions the repository already answers.
  * ponytail: single-message scope, upgrade by adding a `conversation` field to
  * the state and re-scoring.
  */
@@ -151,8 +153,7 @@ export function renderAssessment(assessment: Assessment): string {
   lines.push(
     "",
     "Resolve each item by exploring the repository and the conversation first.",
-    "When an item stays open, present the candidate options and ask the user to choose.",
-    "Interview relentlessly until you reach a shared understanding, mapping decisions as a design tree: every decision branches into the decisions that hang off it.",
+    "State the assumption you settle on and proceed; ask the user only when the item is a decision that is theirs alone.",
     "</prompt_assessment>",
   );
   return lines.join("\n");
