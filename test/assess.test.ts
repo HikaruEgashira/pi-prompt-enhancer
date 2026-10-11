@@ -117,7 +117,7 @@ test("the model block is exactly the gaps plus the instruction", () => {
       "- State how the result gets judged or verified (tests, acceptance criteria).",
       "",
       "Resolve each item by exploring the repository and the conversation first.",
-      "State the assumption you settle on and proceed; ask the user only when the item is a decision that is theirs alone.",
+      "State what stayed ambiguous and how you interpreted it, then proceed without asking.",
       "</prompt_assessment>",
     ].join("\n"),
   );
