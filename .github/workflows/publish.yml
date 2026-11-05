@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   publish:
-    runs-on: hikae-2vcpu-ubuntu-2404-arm
+    # npm trusted publishing supports GitHub-hosted runners only.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -26,29 +27,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify release tag
         run: node --input-type=module -e 'import assert from "node:assert/strict"; import pkg from "./package.json" with { type:"json" }; assert.equal(process.env.GITHUB_REF_NAME, "v" + pkg.version)'
-      # npm reports a publisher mismatch as a bare 404, which is
-      # indistinguishable from "package missing". Ask the OIDC exchange
-      # endpoint directly: it answers 201 when a trusted publisher matches this
-      # repository and workflow, and 404 when none does.
-      - name: Probe the OIDC exchange
-        run: |
-          token=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" | jq -r '.value')
-          if [ -z "$token" ] || [ "$token" = "null" ]; then
-            echo "::error::could not obtain an OIDC id_token"
-            exit 1
-          fi
-          status=$(curl -sS -o /tmp/exchange.json -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer $token" \
-            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@hikae%2Fpi-prompt-enhancer")
-          echo "token exchange status: $status"
-          if [ "$status" = "201" ]; then
-            echo "a trusted publisher matches this repository and workflow"
-          else
-            # Never print the body of a 201; it carries a registry token.
-            echo "no trusted publisher matched; registry said: $(head -c 400 /tmp/exchange.json)"
-          fi
+      # Trusted publishing needs npm 11.5.1 or later; fail clearly rather than
+      # letting an older CLI fall back to token auth and report a bare 404.
+      - name: Check npm supports trusted publishing
+        run: node --input-type=module -e 'import { execSync } from "node:child_process"; const [maj, min, pat] = execSync("npm --version").toString().trim().split(".").map(Number); if (maj < 11 || (maj === 11 && (min < 5 || (min === 5 && pat < 1)))) { console.error("::error::npm >= 11.5.1 is required for trusted publishing"); process.exit(1) }'
       - name: Publish
-        # npm runs prepublishOnly (typecheck + tests). The repository is public,
-        # so npm attaches a provenance attestation automatically.
+        # npm exchanges the workflow's OIDC token for a short-lived publish
+        # credential; no long-lived npm token is used. npm runs prepublishOnly
+        # (typecheck + tests). The repository is public, so npm attaches a
+        # provenance attestation automatically.
         run: npm publish
